@@ -87,7 +87,7 @@ export default function App() {
     setLoading(true);
     setResponse(null);
     try {
-      const res = await axios.post("http://localhost:8000/api/solve", {
+      const res = await axios.post("https://hienluu--swe-ai-be-api-solve.modal.run", {
         challenge: selectedChallenge,
         context,
         mode,
