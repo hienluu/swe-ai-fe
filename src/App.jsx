@@ -1,7 +1,7 @@
 // File: frontend/src/App.jsx
 import React, { useState } from "react";
 import axios from "axios";
-import { Sparkles, Code, Users, Copy, Check, Brain, Cpu, Zap } from "lucide-react";
+import { Sparkles, Code, Users, Copy, Check, Brain, Cpu, Zap, ThumbsUp, ThumbsDown, Minus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 const challenges = {
@@ -82,10 +82,12 @@ export default function App() {
   const [mode, setMode] = useState("plan");
   const [copied, setCopied] = useState(false);
   const [model, setModel] = useState("groq_llama_4");
+  const [feedback, setFeedback] = useState(null);
 
   const submitChallenge = async () => {
     setLoading(true);
     setResponse(null);
+    setFeedback(null);
     try {
       const res = await axios.post("https://hienluu--swe-ai-be-api-solve.modal.run", {
         challenge: selectedChallenge,
@@ -108,6 +110,24 @@ export default function App() {
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy text: ', err);
+    }
+  };
+
+  const submitFeedback = async (feedbackType) => {
+    if (!response || !response.trace_id) return;
+    
+    const feedbackValue = feedbackType === 'up' ? 1 : feedbackType === 'neutral' ? 0 : -1;
+    
+    try {
+      await axios.post("https://hienluu--swe-ai-be-api-post-feedback.modal.run", {
+        trace_id: response.trace_id,
+        feedback: feedbackValue
+      });
+      setFeedback(feedbackType);
+    } catch (err) {
+      console.error('Failed to submit feedback: ', err);
+      // Still set the feedback state even if the request fails
+      setFeedback(feedbackType);
     }
   };
 
@@ -153,7 +173,8 @@ export default function App() {
               onChange={(e) => setModel(e.target.value)}
             >
               <option value="gemini_flash">Gemini Flash</option>
-              <option value="groq_llama_4">Groq Llama 4</option>
+              <option value="groq_llama_4">Groq - Llama 4</option>
+              <option value="sambanova">Sambanova - Llama 4</option>
             </select>
           </div>
         </div>
@@ -183,7 +204,7 @@ export default function App() {
       </div>
 
       <div className="mb-6">
-        <label className="block text-lg font-semibold text-gray-700 mb-2">Describe your specific challenge in detail (optional):</label>
+        <label className="block text-lg font-semibold text-gray-700 mb-2">Describe your specific challenge in detail:</label>
         <textarea
           className="w-[80%] p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           rows="3"
@@ -206,6 +227,7 @@ export default function App() {
             setSelectedChallenge("");
             setContext("");
             setResponse(null);
+            setFeedback(null);
           }}
         >
           Clear Form
@@ -221,7 +243,61 @@ export default function App() {
           ) : (
             <>
               <div className="flex justify-between items-center mb-3">
-                <h2 className="text-2xl font-bold text-indigo-700">{mode === "plan" ? "Analysis & Action Plan" : "Prompt"}</h2>
+                <div className="flex items-center gap-6">
+                  <h2 className="text-2xl font-bold text-indigo-700">{mode === "plan" ? "Analysis & Action Plan" : "Prompt"}</h2>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    {response.total_tokens && (
+                      <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                        <Cpu className="w-3 h-3" />
+                        <span>{response.total_tokens} tokens</span>
+                      </div>
+                    )}
+                    {response.elapsed_time_seconds && (
+                      <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                        <Zap className="w-3 h-3" />
+                        <span>{parseFloat(response.elapsed_time_seconds).toFixed(2)}s</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
+                    <span className="text-xs text-gray-600 mr-1">Feedback:</span>
+                    <button
+                      onClick={() => submitFeedback('up')}
+                      className={`p-1 rounded transition-colors ${
+                        feedback === 'up' 
+                          ? 'bg-green-100 text-green-600' 
+                          : 'hover:bg-gray-100 text-gray-400'
+                      }`}
+                      title="Helpful"
+                    >
+                      <ThumbsUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => submitFeedback('neutral')}
+                      className={`p-1 rounded transition-colors ${
+                        feedback === 'neutral' 
+                          ? 'bg-yellow-100 text-yellow-600' 
+                          : 'hover:bg-gray-100 text-gray-400'
+                      }`}
+                      title="Neutral"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => submitFeedback('down')}
+                      className={`p-1 rounded transition-colors ${
+                        feedback === 'down' 
+                          ? 'bg-red-100 text-red-600' 
+                          : 'hover:bg-gray-100 text-gray-400'
+                      }`}
+                      title="Not helpful"
+                    >
+                      <ThumbsDown className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
                 <button
                   onClick={copyToClipboard}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -243,6 +319,7 @@ export default function App() {
               <div className="mb-6 prose prose-indigo max-w-none">
                 <ReactMarkdown>{response.analysis}</ReactMarkdown>
               </div>
+              
               {/*
               <h2 className="text-2xl font-bold mb-3 text-indigo-700">Comprehensive Action Plan</h2>
               <p className="mb-6 whitespace-pre-wrap leading-relaxed">{response.plan}</p>              
